@@ -4,7 +4,8 @@ defaults:
   - _self_
 
 output_model_name: lewm_lunarlander
-subdir: ${hydra:job.id}
+subdir: ""
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/lewm-runs/heuristic-only
 
 wm:
   action_dim: 2

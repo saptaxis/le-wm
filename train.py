@@ -7,7 +7,7 @@ import lightning as pl
 import stable_pretraining as spt
 import stable_worldmodel as swm
 import torch
-from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 from omegaconf import OmegaConf, open_dict
 
 from jepa import JEPA
@@ -51,18 +51,34 @@ def run(cfg):
     ##       dataset       ##
     #########################
 
-    dataset = swm.data.HDF5Dataset(**cfg.data.dataset, transform=None)
+    # Support single dataset name or list of names for ConcatDataset
+    ds_cfg = dict(cfg.data.dataset)
+    ds_name = ds_cfg.pop("name")
+    if isinstance(ds_name, str):
+        ds_names = [ds_name]
+    else:
+        ds_names = list(ds_name)
+
+    datasets = [swm.data.HDF5Dataset(name=n, **ds_cfg, transform=None) for n in ds_names]
+    if len(datasets) == 1:
+        dataset = datasets[0]
+    else:
+        dataset = swm.data.ConcatDataset(datasets)
+        print(f"ConcatDataset: {len(ds_names)} datasets, {len(dataset)} total clips")
+
     transforms = [get_img_preprocessor(source='pixels', target='pixels', img_size=cfg.img_size)]
-    
+
+    # Use first dataset for normalizer stats
+    ref_dataset = datasets[0]
     with open_dict(cfg):
         for col in cfg.data.dataset.keys_to_load:
             if col.startswith("pixels"):
                 continue
 
-            normalizer = get_column_normalizer(dataset, col, col)
+            normalizer = get_column_normalizer(ref_dataset, col, col)
             transforms.append(normalizer)
 
-            setattr(cfg.wm, f"{col}_dim", dataset.get_dim(col))
+            setattr(cfg.wm, f"{col}_dim", ref_dataset.get_dim(col))
 
     transform = spt.data.transforms.Compose(*transforms)
     dataset.transform = transform
@@ -145,12 +161,17 @@ def run(cfg):
     ##########################
 
     run_id = cfg.get("subdir") or ""
-    run_dir = Path(swm.data.utils.get_cache_dir(), run_id)
+    if cfg.get("run_dir"):
+        run_dir = Path(cfg.run_dir) / run_id
+    else:
+        run_dir = Path(swm.data.utils.get_cache_dir(), run_id)
 
     logger = None
     if cfg.wandb.enabled:
         logger = WandbLogger(**cfg.wandb.config)
         logger.log_hyperparams(OmegaConf.to_container(cfg))
+    else:
+        logger = TensorBoardLogger(save_dir=str(run_dir), name="tb_logs")
 
     run_dir.mkdir(parents=True, exist_ok=True)
     with open(run_dir / "config.yaml", "w") as f:
