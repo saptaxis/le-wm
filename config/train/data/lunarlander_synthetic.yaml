@@ -1,0 +1,10 @@
+dataset:
+  num_steps: ${eval:'${wm.num_preds} + ${wm.history_size}'}
+  frameskip: 1
+  name: lunarlander_synthetic_heuristic
+  keys_to_load:
+    - pixels
+    - action
+  keys_to_cache:
+    - action
+  cache_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-data
