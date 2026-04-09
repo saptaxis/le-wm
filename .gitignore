@@ -1,0 +1,7 @@
+__pycache__/
+outputs/
+lightning_logs/
+environment.json
+environment_v*.json
+requirements_frozen*.txt
+
