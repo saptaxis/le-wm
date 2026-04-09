@@ -2,8 +2,13 @@ dataset:
   num_steps: ${eval:'${wm.num_preds} + ${wm.history_size}'}
   frameskip: 1
   name:
-    - lunarlander_heuristic
-    - lunarlander_random
+    - lunarlander_free-fall
+    - lunarlander_ground-stationary
+    - lunarlander_ground-liftoff
+    - lunarlander_ground-side-thrust
+    - lunarlander_ground-thrust-sweep
+    - lunarlander_impulse-main
+    - lunarlander_impulse-side
   keys_to_load:
     - pixels
     - action
