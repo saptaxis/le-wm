@@ -171,7 +171,7 @@ def run(cfg):
         logger = WandbLogger(**cfg.wandb.config)
         logger.log_hyperparams(OmegaConf.to_container(cfg))
     else:
-        logger = TensorBoardLogger(save_dir=str(run_dir), name="tb_logs")
+        logger = TensorBoardLogger(save_dir=str(run_dir), name="tb_logs", version="")
 
     run_dir.mkdir(parents=True, exist_ok=True)
     with open(run_dir / "config.yaml", "w") as f:
