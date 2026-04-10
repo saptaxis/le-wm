@@ -1,6 +1,6 @@
 dataset:
   num_steps: ${eval:'${wm.num_preds} + ${wm.history_size}'}
-  frameskip: 20
+  frameskip: 10
   name: lunarlander_heuristic
   keys_to_load:
     - pixels

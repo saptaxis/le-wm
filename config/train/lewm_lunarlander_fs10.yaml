@@ -1,0 +1,14 @@
+defaults:
+  - lewm
+  - override data: lunarlander
+  - _self_
+
+output_model_name: lewm_lunarlander_fs10
+subdir: ""
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/lewm-runs/heuristic-fs10
+
+wm:
+  action_dim: 2
+
+wandb:
+  enabled: False
