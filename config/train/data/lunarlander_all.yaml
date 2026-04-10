@@ -16,4 +16,4 @@ dataset:
     - action
   keys_to_cache:
     - action
-  cache_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-data
+  cache_dir: /home/vsr/vsr-tmp/lewm-datasets
