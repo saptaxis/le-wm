@@ -11,6 +11,10 @@ dataset:
     - lunarlander_synthetic_ground-thrust-sweep
     - lunarlander_synthetic_impulse-main
     - lunarlander_synthetic_impulse-side
+    - lunarlander_synthetic_gym-default-blind-s42
+    - lunarlander_synthetic_gym-default-blind-s123
+    - lunarlander_synthetic_gym-default-labeled-s42
+    - lunarlander_synthetic_gym-default-labeled-s123
   keys_to_load:
     - pixels
     - action
