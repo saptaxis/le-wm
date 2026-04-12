@@ -1,0 +1,19 @@
+dataset:
+  num_steps: ${eval:'${wm.num_preds} + ${wm.history_size}'}
+  frameskip: 10
+  name:
+    - lunarlander_synthetic_heuristic
+    - lunarlander_synthetic_random
+    - lunarlander_synthetic_free-fall
+    - lunarlander_synthetic_ground-stationary
+    - lunarlander_synthetic_ground-liftoff
+    - lunarlander_synthetic_ground-side-thrust
+    - lunarlander_synthetic_ground-thrust-sweep
+    - lunarlander_synthetic_impulse-main
+    - lunarlander_synthetic_impulse-side
+  keys_to_load:
+    - pixels
+    - action
+  keys_to_cache:
+    - action
+  cache_dir: /home/vsr/vsr-tmp/lewm-datasets
