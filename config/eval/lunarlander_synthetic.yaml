@@ -10,6 +10,12 @@ world:
   history_size: 3
   frame_skip: 10
 
+dataset:
+  stats: ${eval.dataset_name}
+  keys_to_cache:
+    - action
+    - state
+
 seed: 42
 policy: random
 state_head_path: ""
@@ -21,10 +27,21 @@ plan_config:
 
 eval:
   num_eval: 20
+  goal_offset_steps: 25
   eval_budget: 50
   img_size: 224
+  dataset_name: lunarlander_synthetic_heuristic
   kinematic_target: [0.3, 0.0, 0.0, 0.0, 0.0, 0.0]
   kinematic_weights: [1.0, 1.0, 0.5, 0.5, 1.0, 0.0]
+  callables:
+    - method: _set_state
+      args:
+        state:
+          value: state
+    - method: _set_goal_state
+      args:
+        goal_state:
+          value: state
 
 output:
   filename: lunarlander_synthetic_results.txt
