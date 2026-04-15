@@ -14,6 +14,8 @@ from sklearn import preprocessing
 from torchvision.transforms import v2 as transforms
 import stable_worldmodel as swm
 
+import lewm.env  # noqa: F401  — registers LunarLanderSynthetic-v0 with gym
+
 def img_transform(cfg):
     transform = transforms.Compose(
         [
@@ -85,11 +87,31 @@ def run(cfg: DictConfig):
     policy = cfg.get("policy", "random")
 
     if policy != "random":
-        model = swm.policy.AutoCostModel(cfg.policy)
-        model = model.to("cuda")
-        model = model.eval()
-        model.requires_grad_(False)
-        model.interpolate_pos_encoding = True
+        state_head_path = cfg.get("state_head_path", "") or ""
+        if state_head_path:
+            # Kinematic-goal mode: load LeWMKinematic via factory
+            import sys
+            from pathlib import Path
+            LEWM_REPO = Path(__file__).resolve().parent.parent.parent
+            sys.path.insert(0, str(LEWM_REPO))
+            from lewm.eval.lewm_kinematic import build_kinematic_from_paths
+            policy_ckpt = str(Path(swm.data.utils.get_cache_dir(), cfg.policy).resolve())
+            if not policy_ckpt.endswith(".ckpt"):
+                policy_ckpt = policy_ckpt + "_object.ckpt"
+            model = build_kinematic_from_paths(
+                model_path=policy_ckpt,
+                state_head_path=state_head_path,
+                target_state=list(cfg.eval.kinematic_target),
+                kinematic_weights=list(cfg.eval.kinematic_weights),
+                device="cuda",
+            )
+        else:
+            model = swm.policy.AutoCostModel(cfg.policy)
+            model = model.to("cuda")
+            model = model.eval()
+            model.requires_grad_(False)
+            model.interpolate_pos_encoding = True
+
         config = swm.PlanConfig(**cfg.plan_config)
         solver = hydra.utils.instantiate(cfg.solver, model=model)
         policy = swm.policy.WorldModelPolicy(
