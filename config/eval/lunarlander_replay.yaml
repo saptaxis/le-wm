@@ -1,0 +1,44 @@
+defaults:
+  - launcher: local
+  - solver: cem
+  - _self_
+
+world:
+  env_name: LunarLanderSynthetic-v0
+  num_envs: ${eval.num_eval}
+  max_episode_steps: 400
+  history_size: 3
+  frame_skip: 10
+
+dataset:
+  stats: ${eval.dataset_name}
+  keys_to_cache:
+    - action
+    - state
+
+seed: 42
+policy: random
+
+plan_config:
+  horizon: 5
+  receding_horizon: 5
+  action_block: 10
+
+eval:
+  num_eval: 50
+  goal_offset_steps: 25
+  eval_budget: 50
+  img_size: 224
+  dataset_name: lunarlander_synthetic_heuristic
+  callables:
+    - method: _set_state
+      args:
+        state:
+          value: state
+    - method: _set_goal_state
+      args:
+        goal_state:
+          value: state
+
+output:
+  filename: lunarlander_replay_results.txt
