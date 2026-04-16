@@ -126,49 +126,89 @@ def run(cfg: DictConfig):
         else Path(__file__).parent
     )
 
-    # sample the episodes and the starting indices
-    episode_len = get_episodes_length(dataset, ep_indices)
-    max_start_idx = episode_len - cfg.eval.goal_offset_steps - 1
-    max_start_idx_dict = {ep_id: max_start_idx[i] for i, ep_id in enumerate(ep_indices)}
-    # Map each dataset row’s episode_idx to its max_start_idx
-    col_name = "episode_idx" if "episode_idx" in dataset.column_names else "ep_idx"
-    max_start_per_row = np.array(
-        [max_start_idx_dict[ep_id] for ep_id in dataset.get_col_data(col_name)]
-    )
+    # Dataset-based episode sampling is only needed for the legacy
+    # evaluate_from_dataset path. Skip when replay-mode h5_path is provided.
+    eval_episodes = None
+    eval_start_idx = None
+    if "h5_path" not in cfg.eval:
+        # sample the episodes and the starting indices
+        episode_len = get_episodes_length(dataset, ep_indices)
+        max_start_idx = episode_len - cfg.eval.goal_offset_steps - 1
+        max_start_idx_dict = {ep_id: max_start_idx[i] for i, ep_id in enumerate(ep_indices)}
+        # Map each dataset row’s episode_idx to its max_start_idx
+        col_name = "episode_idx" if "episode_idx" in dataset.column_names else "ep_idx"
+        max_start_per_row = np.array(
+            [max_start_idx_dict[ep_id] for ep_id in dataset.get_col_data(col_name)]
+        )
 
-    # remove all the lines of dataset for which dataset['step_idx'] > max_start_per_row
-    valid_mask = dataset.get_col_data("step_idx") <= max_start_per_row
-    valid_indices = np.nonzero(valid_mask)[0]
-    print(valid_mask.sum(), "valid starting points found for evaluation.")
+        # remove all the lines of dataset for which dataset['step_idx'] > max_start_per_row
+        valid_mask = dataset.get_col_data("step_idx") <= max_start_per_row
+        valid_indices = np.nonzero(valid_mask)[0]
+        print(valid_mask.sum(), "valid starting points found for evaluation.")
 
-    g = np.random.default_rng(cfg.seed)
-    random_episode_indices = g.choice(
-        len(valid_indices) - 1, size=cfg.eval.num_eval, replace=False
-    )
+        g = np.random.default_rng(cfg.seed)
+        random_episode_indices = g.choice(
+            len(valid_indices) - 1, size=cfg.eval.num_eval, replace=False
+        )
 
-    # sort increasingly to avoid issues with HDF5Dataset indexing
-    random_episode_indices = np.sort(valid_indices[random_episode_indices])
+        # sort increasingly to avoid issues with HDF5Dataset indexing
+        random_episode_indices = np.sort(valid_indices[random_episode_indices])
 
-    print(random_episode_indices)
+        print(random_episode_indices)
 
-    eval_episodes = dataset.get_row_data(random_episode_indices)[col_name]
-    eval_start_idx = dataset.get_row_data(random_episode_indices)["step_idx"]
+        eval_episodes = dataset.get_row_data(random_episode_indices)[col_name]
+        eval_start_idx = dataset.get_row_data(random_episode_indices)["step_idx"]
 
-    if len(eval_episodes) < cfg.eval.num_eval:
-        raise ValueError("Not enough episodes with sufficient length for evaluation.")
+        if len(eval_episodes) < cfg.eval.num_eval:
+            raise ValueError("Not enough episodes with sufficient length for evaluation.")
 
     world.set_policy(policy)
 
     start_time = time.time()
-    metrics = world.evaluate_from_dataset(
-        dataset,
-        start_steps=eval_start_idx.tolist(),
-        goal_offset_steps=cfg.eval.goal_offset_steps,
-        eval_budget=cfg.eval.eval_budget,
-        episodes_idx=eval_episodes.tolist(),
-        callables=OmegaConf.to_container(cfg.eval.get("callables"), resolve=True),
-        video_path=results_path,
-    )
+    # Replay-mode custom loop (Task 19): route through planner_eval if h5_path set.
+    if "h5_path" in cfg.eval:
+        import sys
+        LEWM_REPO = Path(__file__).resolve().parent.parent.parent
+        sys.path.insert(0, str(LEWM_REPO))
+        from lewm.eval.planner_eval import ReplayConfig, evaluate_replay
+
+        replay_cfg = ReplayConfig(
+            h5_path=cfg.eval.h5_path,
+            n_episodes=cfg.eval.num_eval,
+            goal_offset_steps=cfg.eval.goal_offset_steps,
+            eval_budget=cfg.eval.eval_budget,
+            horizon=cfg.plan_config.horizon,
+            frameskip=cfg.world.frame_skip,
+            z_success_threshold=cfg.eval.z_success_threshold,
+            kin_success_threshold=cfg.eval.kin_success_threshold,
+            kin_weights=np.array(list(cfg.eval.kin_weights), dtype=np.float32),
+            seed=cfg.seed,
+        )
+        results = evaluate_replay(
+            world=world, policy=policy, model=model, cfg=replay_cfg, device="cuda"
+        )
+
+        logs_path = Path(cfg.eval.logs_path)
+        logs_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(logs_path, **results)
+        print(f"Planner logs saved to {logs_path}")
+
+        metrics = {
+            "success_rate_z": float(results["success_z"].mean()),
+            "success_rate_kin": float(results["success_kin"].mean()),
+            "mean_final_z": float(results["final_z_distance"].mean()),
+            "mean_final_kin": float(results["final_kin_distance"].mean()),
+        }
+    else:
+        metrics = world.evaluate_from_dataset(
+            dataset,
+            start_steps=eval_start_idx.tolist(),
+            goal_offset_steps=cfg.eval.goal_offset_steps,
+            eval_budget=cfg.eval.eval_budget,
+            episodes_idx=eval_episodes.tolist(),
+            callables=OmegaConf.to_container(cfg.eval.get("callables"), resolve=True),
+            video_path=results_path,
+        )
     end_time = time.time()
     
     print(metrics)

@@ -25,16 +25,16 @@ plan_config:
   action_block: 10
 
 eval:
-  num_eval: 50
+  num_eval: 20
   goal_offset_steps: 25
   eval_budget: 50
   img_size: 224
   dataset_name: lunarlander_synthetic_heuristic
-  callables:
-    - method: _set_goal_state
-      args:
-        goal_state:
-          value: state
+  z_success_threshold: 2.0
+  kin_success_threshold: 0.3
+  kin_weights: [1.0, 1.0, 0.5, 0.5, 1.0, 0.0]
+  h5_path: /media/hdd1/physics-priors-latent-space/lunar-lander-data/datasets/lunarlander_synthetic_heuristic.h5
+  logs_path: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/lewm-runs/synthetic-heuristic-fs10/planning_results/replay_cem_logs.npz
 
 output:
   filename: lunarlander_replay_results.txt
