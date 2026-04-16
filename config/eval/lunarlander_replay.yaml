@@ -31,10 +31,6 @@ eval:
   img_size: 224
   dataset_name: lunarlander_synthetic_heuristic
   callables:
-    - method: _set_state
-      args:
-        state:
-          value: state
     - method: _set_goal_state
       args:
         goal_state:

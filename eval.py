@@ -91,7 +91,6 @@ def run(cfg: DictConfig):
         if state_head_path:
             # Kinematic-goal mode: load LeWMKinematic via factory
             import sys
-            from pathlib import Path
             LEWM_REPO = Path(__file__).resolve().parent.parent.parent
             sys.path.insert(0, str(LEWM_REPO))
             from lewm.eval.lewm_kinematic import build_kinematic_from_paths
