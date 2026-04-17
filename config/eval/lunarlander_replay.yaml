@@ -18,6 +18,7 @@ dataset:
 
 seed: 42
 policy: random
+state_head_path: ""
 
 plan_config:
   horizon: 5
@@ -33,6 +34,9 @@ eval:
   z_success_threshold: 2.0
   kin_success_threshold: 0.3
   kin_weights: [1.0, 1.0, 0.5, 0.5, 1.0, 0.0]
+  # Placeholder for kinematic cost mode (overridden per-episode by planner_eval)
+  kinematic_target: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  kinematic_weights: [1.0, 1.0, 0.5, 0.5, 1.0, 0.0]
   h5_path: /media/hdd1/physics-priors-latent-space/lunar-lander-data/datasets/lunarlander_synthetic_heuristic.h5
   logs_path: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/lewm-runs/synthetic-heuristic-fs10/planning_results/replay_cem_logs.npz
 
