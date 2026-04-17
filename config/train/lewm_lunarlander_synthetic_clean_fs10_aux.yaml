@@ -1,0 +1,19 @@
+defaults:
+  - lewm
+  - override data: lunarlander_synthetic_clean
+  - _self_
+
+output_model_name: lewm_lunarlander_synthetic_clean_fs10_aux
+subdir: ""
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/lewm-runs/synthetic-clean-fs10-aux
+
+wm:
+  action_dim: 2
+  aux_loss:
+    enabled: true
+    lambda: 0.2
+    state_dim: 6
+    head_type: linear
+
+wandb:
+  enabled: False

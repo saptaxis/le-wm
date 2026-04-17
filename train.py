@@ -4,6 +4,7 @@ from pathlib import Path
 
 import hydra
 import lightning as pl
+import numpy as np
 import stable_pretraining as spt
 import stable_worldmodel as swm
 import torch
@@ -11,7 +12,7 @@ from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
 from omegaconf import OmegaConf, open_dict
 
 from jepa import JEPA
-from module import ARPredictor, Embedder, MLP, SIGReg
+from module import ARPredictor, Embedder, LinearStateHead, MLP, SIGReg
 from utils import get_column_normalizer, get_img_preprocessor, ModelObjectCallBack
 
 
@@ -39,7 +40,27 @@ def lejepa_forward(self, batch, stage, cfg):
     # LeWM loss
     output["pred_loss"] = (pred_emb - tgt_emb).pow(2).mean()
     output["sigreg_loss"]= self.sigreg(emb.transpose(0, 1))
-    output["loss"] = output["pred_loss"] + lambd * output["sigreg_loss"]  
+    output["loss"] = output["pred_loss"] + lambd * output["sigreg_loss"]
+
+    # Optional auxiliary kinematic loss: decode predicted z's to GT state and
+    # penalize mismatch. Forces action effects into the kinematic z-subspace.
+    aux_cfg = cfg.wm.get("aux_loss", None)
+    if (
+        aux_cfg is not None
+        and bool(aux_cfg.get("enabled", False))
+        and getattr(self.model, "state_head", None) is not None
+        and "state" in batch
+    ):
+        kin_dim = int(aux_cfg.get("state_dim", 6))
+        lam = float(aux_cfg["lambda"])
+        # pred_emb predicts positions [ctx_len - (ctx_len - n_preds) ... T-1].
+        # With ctx_len=3, n_preds=1 this gives the last 3 positions of the T=4
+        # window, same as tgt_emb. GT state targets slice the same positions.
+        gt_state = batch["state"][:, n_preds:, :kin_dim].float()
+        target = self.model.state_head.normalize_target(gt_state)
+        decoded = self.model.state_head(pred_emb)
+        output["aux_kin_loss"] = (decoded - target).pow(2).mean()
+        output["loss"] = output["loss"] + lam * output["aux_kin_loss"]
 
     losses_dict = {f"{stage}/{k}": v.detach() for k, v in output.items() if "loss" in k}
     is_train = (stage == "fit")
@@ -74,6 +95,12 @@ def run(cfg):
     with open_dict(cfg):
         for col in cfg.data.dataset.keys_to_load:
             if col.startswith("pixels"):
+                continue
+            # `state` is consumed by the auxiliary kinematic loss, which computes
+            # its own normalization over just the first `state_dim` kinematic
+            # dims (the per-column normalizer would otherwise try to normalize
+            # all 15 dims, including near-constant physics params with std~=0).
+            if col == "state":
                 continue
 
             normalizer = get_column_normalizer(ref_dataset, col, col)
@@ -132,12 +159,42 @@ def run(cfg):
         norm_fn=torch.nn.BatchNorm1d,
     )
 
+    # Auxiliary kinematic state head (optional).
+    state_head = None
+    aux_cfg = cfg.wm.get("aux_loss", None)
+    if aux_cfg is not None and bool(aux_cfg.get("enabled", False)):
+        kin_dim = int(aux_cfg.get("state_dim", 6))
+        # Compute per-dim kinematic mean/std from the ref dataset. Uses the
+        # full reference dataset (not the train/val split) as a stable summary
+        # of the training distribution. HDF5 state has shape (total_frames, 15);
+        # we only care about the first `kin_dim` (kinematic) dimensions.
+        state_data = np.asarray(ref_dataset.get_col_data("state"))[:, :kin_dim]
+        # Drop any rows with NaN to match the action normalizer's behavior.
+        mask = ~np.isnan(state_data).any(axis=1)
+        state_data = state_data[mask]
+        kin_mean = torch.from_numpy(state_data.mean(axis=0)).float()
+        kin_std = torch.from_numpy(state_data.std(axis=0)).float()
+        # Safety clamp against degenerate dims. With normal kinematic data from
+        # lunar-lander trajectories, no clamp should actually fire.
+        kin_std = torch.clamp(kin_std, min=1e-4)
+        print(
+            f"Aux kinematic head: mean={kin_mean.tolist()}, std={kin_std.tolist()}, "
+            f"lambda={float(aux_cfg['lambda'])}"
+        )
+        state_head = LinearStateHead(
+            in_dim=embed_dim,
+            out_dim=kin_dim,
+            target_mean=kin_mean,
+            target_std=kin_std,
+        )
+
     world_model = JEPA(
         encoder=encoder,
         predictor=predictor,
         action_encoder=action_encoder,
         projector=projector,
         pred_proj=predictor_proj,
+        state_head=state_head,
     )
 
     optimizers = {

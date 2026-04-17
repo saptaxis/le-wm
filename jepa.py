@@ -17,6 +17,7 @@ class JEPA(nn.Module):
         action_encoder,
         projector=None,
         pred_proj=None,
+        state_head=None,
     ):
         super().__init__()
 
@@ -25,6 +26,9 @@ class JEPA(nn.Module):
         self.action_encoder = action_encoder
         self.projector = projector or nn.Identity()
         self.pred_proj = pred_proj or nn.Identity()
+        # Optional auxiliary kinematic decoder. When set, registers itself as a
+        # submodule so its params are picked up by the 'model' optimizer group.
+        self.state_head = state_head
 
     def encode(self, info):
         """Encode observations and actions into embeddings.

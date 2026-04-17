@@ -7,6 +7,40 @@ def modulate(x, shift, scale):
     """AdaLN-zero modulation"""
     return x * (1 + scale) + shift
 
+
+class LinearStateHead(nn.Module):
+    """Linear decoder from predicted z to kinematic state, with target normalization.
+
+    Used by the auxiliary kinematic loss that forces the JEPA predictor to route
+    action-conditioned changes into the first `out_dim` z-dimensions.
+
+    Args:
+        in_dim: predictor output embedding dim (e.g. embed_dim=192).
+        out_dim: kinematic state dim (6 for [x, y, vx, vy, angle, ang_vel]).
+        target_mean: (out_dim,) per-dim mean of GT state over training set.
+        target_std: (out_dim,) per-dim std; clamped above a floor elsewhere.
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        out_dim: int,
+        target_mean: torch.Tensor,
+        target_std: torch.Tensor,
+    ) -> None:
+        super().__init__()
+        self.linear = nn.Linear(in_dim, out_dim)
+        assert target_mean.shape == (out_dim,)
+        assert target_std.shape == (out_dim,)
+        self.register_buffer("target_mean", target_mean.float())
+        self.register_buffer("target_std", target_std.float())
+
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        return self.linear(z)
+
+    def normalize_target(self, state: torch.Tensor) -> torch.Tensor:
+        return (state - self.target_mean) / self.target_std
+
 class SIGReg(torch.nn.Module):
     """Sketch Isotropic Gaussian Regularizer (single-GPU!)"""
 

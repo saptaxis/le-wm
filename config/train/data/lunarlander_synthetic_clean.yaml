@@ -1,0 +1,24 @@
+dataset:
+  num_steps: ${eval:'${wm.num_preds} + ${wm.history_size}'}
+  frameskip: 10
+  name:
+    - lunarlander_synthetic_heuristic_clean
+    - lunarlander_synthetic_free-fall_clean
+    - lunarlander_synthetic_ground-stationary_clean
+    - lunarlander_synthetic_ground-liftoff_clean
+    - lunarlander_synthetic_ground-side-thrust_clean
+    - lunarlander_synthetic_ground-thrust-sweep_clean
+    - lunarlander_synthetic_impulse-main_clean
+    - lunarlander_synthetic_impulse-side_clean
+    - lunarlander_synthetic_gym-default-blind-s42_clean
+    - lunarlander_synthetic_gym-default-blind-s123_clean
+    - lunarlander_synthetic_gym-default-labeled-s42_clean
+    - lunarlander_synthetic_gym-default-labeled-s123_clean
+  keys_to_load:
+    - pixels
+    - action
+    - state
+  keys_to_cache:
+    - action
+    - state
+  cache_dir: /home/vsr/vsr-tmp/lewm-datasets
