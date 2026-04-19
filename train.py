@@ -164,11 +164,19 @@ def run(cfg):
     aux_cfg = cfg.wm.get("aux_loss", None)
     if aux_cfg is not None and bool(aux_cfg.get("enabled", False)):
         kin_dim = int(aux_cfg.get("state_dim", 6))
-        # Compute per-dim kinematic mean/std from the ref dataset. Uses the
-        # full reference dataset (not the train/val split) as a stable summary
-        # of the training distribution. HDF5 state has shape (total_frames, 15);
-        # we only care about the first `kin_dim` (kinematic) dimensions.
-        state_data = np.asarray(ref_dataset.get_col_data("state"))[:, :kin_dim]
+        # Compute per-dim kinematic mean/std POOLED across ALL datasets in the
+        # training mix, not just datasets[0]. Prior bug (fixed 2026-04-19):
+        # used ref_dataset only, which undersized angle/ang_vel std by ~2×
+        # relative to pooled (heuristic has much narrower rotation than
+        # impulse-side, etc.). The undersized std made non-heuristic samples
+        # contribute disproportionately large normalized targets to the aux
+        # loss, biasing the optimizer. Pooling equalizes per-sample weight.
+        # HDF5 state has shape (total_frames, 15); we only care about the
+        # first `kin_dim` (kinematic) dimensions.
+        state_parts = [
+            np.asarray(d.get_col_data("state"))[:, :kin_dim] for d in datasets
+        ]
+        state_data = np.concatenate(state_parts, axis=0)
         # Drop any rows with NaN to match the action normalizer's behavior.
         mask = ~np.isnan(state_data).any(axis=1)
         state_data = state_data[mask]
@@ -178,7 +186,8 @@ def run(cfg):
         # lunar-lander trajectories, no clamp should actually fire.
         kin_std = torch.clamp(kin_std, min=1e-4)
         print(
-            f"Aux kinematic head: mean={kin_mean.tolist()}, std={kin_std.tolist()}, "
+            f"Aux kinematic head: pooled across {len(datasets)} datasets, "
+            f"mean={kin_mean.tolist()}, std={kin_std.tolist()}, "
             f"lambda={float(aux_cfg['lambda'])}"
         )
         state_head = LinearStateHead(
