@@ -37,14 +37,25 @@ def lejepa_forward(self, batch, stage, cfg):
     tgt_emb = emb[:, n_preds:] # label
     pred_emb = self.model.predict(ctx_emb, ctx_act) # pred
 
+    # Dedicated kinematic subspace (v2): reserve the first `kin_block` dims of
+    # z for the aux-decoded kinematic state. SIGReg then applies only to the
+    # remaining z_rest dims so it doesn't fight the aux loss's pull toward
+    # real state statistics. If kin_block is unset or equals embed_dim, this
+    # falls back to v1 behavior (sigreg on full z, aux reads full z).
+    aux_cfg = cfg.wm.get("aux_loss", None)
+    kin_block = int(aux_cfg.get("kin_block", emb.size(-1))) if aux_cfg is not None else emb.size(-1)
+    kin_block = min(kin_block, emb.size(-1))
+
     # LeWM loss
     output["pred_loss"] = (pred_emb - tgt_emb).pow(2).mean()
-    output["sigreg_loss"]= self.sigreg(emb.transpose(0, 1))
+    if kin_block < emb.size(-1):
+        output["sigreg_loss"] = self.sigreg(emb[..., kin_block:].transpose(0, 1))
+    else:
+        output["sigreg_loss"] = self.sigreg(emb.transpose(0, 1))
     output["loss"] = output["pred_loss"] + lambd * output["sigreg_loss"]
 
     # Optional auxiliary kinematic loss: decode predicted z's to GT state and
     # penalize mismatch. Forces action effects into the kinematic z-subspace.
-    aux_cfg = cfg.wm.get("aux_loss", None)
     if (
         aux_cfg is not None
         and bool(aux_cfg.get("enabled", False))
@@ -58,7 +69,10 @@ def lejepa_forward(self, batch, stage, cfg):
         # window, same as tgt_emb. GT state targets slice the same positions.
         gt_state = batch["state"][:, n_preds:, :kin_dim].float()
         target = self.model.state_head.normalize_target(gt_state)
-        decoded = self.model.state_head(pred_emb)
+        # State head reads from the reserved kinematic subspace (first kin_block
+        # dims). If kin_block == D, this is just the full z (v1 behavior).
+        z_kin = pred_emb[..., :kin_block]
+        decoded = self.model.state_head(z_kin)
         output["aux_kin_loss"] = (decoded - target).pow(2).mean()
         output["loss"] = output["loss"] + lam * output["aux_kin_loss"]
 
@@ -185,13 +199,20 @@ def run(cfg):
         # Safety clamp against degenerate dims. With normal kinematic data from
         # lunar-lander trajectories, no clamp should actually fire.
         kin_std = torch.clamp(kin_std, min=1e-4)
+        # Dedicated kinematic subspace: state head reads from a reserved block
+        # of z (z_kin). Default kin_block = embed_dim preserves v1 behavior
+        # (head reads full z). v2 sets kin_block=16 to reserve the first 16
+        # dims of z for kinematic decoding and excludes those dims from SIGReg.
+        kin_block = int(aux_cfg.get("kin_block", embed_dim))
+        kin_block = min(kin_block, embed_dim)
         print(
             f"Aux kinematic head: pooled across {len(datasets)} datasets, "
+            f"kin_block={kin_block}/{embed_dim}, "
             f"mean={kin_mean.tolist()}, std={kin_std.tolist()}, "
             f"lambda={float(aux_cfg['lambda'])}"
         )
         state_head = LinearStateHead(
-            in_dim=embed_dim,
+            in_dim=kin_block,
             out_dim=kin_dim,
             target_mean=kin_mean,
             target_std=kin_std,
