@@ -204,7 +204,13 @@ def run(cfg):
         # (head reads full z). v2 sets kin_block=16 to reserve the first 16
         # dims of z for kinematic decoding and excludes those dims from SIGReg.
         kin_block = int(aux_cfg.get("kin_block", embed_dim))
-        kin_block = min(kin_block, embed_dim)
+        assert 0 < kin_block <= embed_dim, (
+            f"aux_loss.kin_block={kin_block} must be in (0, embed_dim={embed_dim}]"
+        )
+        assert kin_block >= kin_dim, (
+            f"aux_loss.kin_block={kin_block} must be >= aux_loss.state_dim={kin_dim}"
+            f" (head maps kin_block→state_dim dims)"
+        )
         print(
             f"Aux kinematic head: pooled across {len(datasets)} datasets, "
             f"kin_block={kin_block}/{embed_dim}, "
