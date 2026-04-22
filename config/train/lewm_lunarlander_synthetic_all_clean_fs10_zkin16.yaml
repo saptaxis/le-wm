@@ -8,15 +8,19 @@ defaults:
 # supervision can only read z[:, :16], does the encoder learn to route state
 # into those reserved dims, or does the predictor continue to do the routing?
 #
+# Naming convention: `zkin` implies aux is on (kin_block is an aux_loss
+# parameter — has no meaning without aux). So run / config names drop the
+# redundant `aux` prefix when `zkin` is present.
+#
 # Comparison peers (all post-fix):
 #   synthetic-all-clean-fs10-aux       : kin_block unset (=192), num_preds=1  (v1-equiv)
-#   synthetic-all-clean-fs10-aux-zkin16: kin_block=16,           num_preds=1  (THIS run)
-#   synthetic-all-clean-fs10-aux-np2   : kin_block unset,         num_preds=2 (np=2 isolated)
+#   synthetic-all-clean-fs10-zkin16    : kin_block=16,           num_preds=1  (THIS run)
+#   synthetic-all-clean-fs10-aux-np2   : kin_block unset,         num_preds=2 (np=2 isolated, aux kept in name since np=2 can exist without aux)
 #   synthetic-all-clean-fs10-zkin16-np2: kin_block=16,           num_preds=2  (v2 combined, archived broken)
 
-output_model_name: lewm_lunarlander_synthetic_all_clean_fs10_aux_zkin16
+output_model_name: lewm_lunarlander_synthetic_all_clean_fs10_zkin16
 subdir: ""
-run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/lewm-runs/synthetic-all-clean-fs10-aux-zkin16
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/lewm-runs/synthetic-all-clean-fs10-zkin16
 
 wm:
   action_dim: 2
