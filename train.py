@@ -123,7 +123,17 @@ def run(cfg):
             setattr(cfg.wm, f"{col}_dim", ref_dataset.get_dim(col))
 
     transform = spt.data.transforms.Compose(*transforms)
-    dataset.transform = transform
+    # Propagate transform to each sub-dataset explicitly. swm.data.ConcatDataset
+    # does NOT invoke a transform stored on itself; its __getitem__ is pure
+    # delegation to self.datasets[i], which DO honor their own .transform.
+    # Without this loop, every multi-dataset config silently skips the pixel
+    # preprocessor AND the per-column normalizers: ViT sees raw uint8 pixels,
+    # action_encoder sees raw [-1, 1] actions. Single-dataset configs are
+    # unaffected because `dataset is datasets[0]` and the line below sets the
+    # transform on the HDF5Dataset directly. See e5-05 notebook.
+    for ds in datasets:
+        ds.transform = transform
+    dataset.transform = transform  # harmless: preserved for introspection
 
     rnd_gen = torch.Generator().manual_seed(cfg.seed)
     train_set, val_set = spt.data.random_split(
