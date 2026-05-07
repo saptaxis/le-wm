@@ -1,0 +1,16 @@
+defaults:
+  - lewm
+  - override data: lunarlander_synthetic_all_clean
+  - _self_
+
+output_model_name: lewm_lunarlander_synthetic_all_clean_fs10
+subdir: ""
+run_dir: /media/hdd1/physics-priors-latent-space/lunar-lander-networks/lewm-runs/synthetic-all-clean-fs10
+
+wm:
+  action_dim: 2
+  # No aux_loss block — matches heur-only recipe (pred_loss + SIGReg only).
+  # num_preds inherits default 1.
+
+wandb:
+  enabled: False
