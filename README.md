@@ -1,3 +1,15 @@
+> **Note — this is a fork.**
+> Upstream is **[lucas-maes/le-wm](https://github.com/lucas-maes/le-wm)** by Lucas Maes,
+> Quentin Le Lidec, Damien Scieur, Yann LeCun and Randall Balestriero. This `main`
+> branch is unmodified upstream.
+>
+> My changes live on the **[`lunar-lander`](../../tree/lunar-lander)** branch: hydra
+> train/eval configs for a Lunar Lander dataset, eval routing for a replay loop and a
+> kinematic cost model, and an optional auxiliary kinematic loss with a dedicated
+> `z_kin` subspace. They are used by
+> [saptaxis/world-model-audits](https://github.com/saptaxis/world-model-audits), which
+> vendors this repo as a submodule. Nothing in the paper, the method or the results is
+> mine — please cite the authors, below.
 
 # LeWorldModel
 ### Stable End-to-End Joint-Embedding Predictive Architecture from Pixels
